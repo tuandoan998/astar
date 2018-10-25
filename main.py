@@ -9,19 +9,20 @@ import math
 import time
 import heapq
 
-item_width = 20
-item_height = 20
-DELAY_TIME = 0.005  # 0.1s
 # color
 NEIGHBOR_COLOR = (255, 255, 153)
 WALL_COLOR = (0, 0, 0)
 START_GOAL_COLOR = (255, 0, 0)
 CURRENT_COLOR = (102, 102, 255)
 BACKGROUND_COLOR = (204, 255, 229)
+
 # variable
-screen_width = 0
-screen_height = 0
-margin = 1
+MARGIN = 1
+ITEM_WIDTH = 20
+ITEM_HEIGHT = 20
+
+# time
+DELAY_TIME = 0.005  # 0.1s
 
 
 class PriorityQueue:
@@ -174,17 +175,21 @@ class AStar:
     def writeToFile(self, file_name):
         self.map.writeToFile(file_name, self.minStep, self.minPath)
 
-    def runAStar(self, gui, input_name='input1.txt', output_name='output1.txt'):
+    def runAStar(self, gui, output_name='output1.txt'):
+        global sum_delay
+        sum_delay = 0
+
         START_TIME = time.clock()
-        self.map.readFromFile(input_name)
         self.minStep, self.minPath = self.aStar(gui)
+
         self.writeToFile(output_name)
+
         if self.minStep == -1:
-            alert("Notification", "Path not found!")
+            Notification().alert("Notification", "Path not found!")
         else:
             gui.drawPath(self.minPath)
-            alert("Time: ",
-                  repr(time.clock() - START_TIME - sum_delay) + "s\nStep: " + repr(self.minStep))
+            Notification().alert("Time: ",
+                                 repr(time.clock() - START_TIME - sum_delay) + "s\nStep: " + repr(self.minStep))
 
 
 class ARAStar(AStar):
@@ -196,7 +201,7 @@ class ARAStar(AStar):
         self.de_epsilon = de_epsilon
         self.incons = PriorityQueue()
 
-    def improvePath(self, gui):
+    def improvePath(self):
         while not self.open_set.empty() and \
                 ((self.goal not in self.f_score) or self.f_score[self.goal] > self.f_score[self.start]):
             neighbors = [(-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1)]
@@ -205,7 +210,6 @@ class ARAStar(AStar):
                 if current == self.goal:
                     break
                 self.close_set.add(current)
-                gui.updateMap(current, CURRENT_COLOR)
                 path = []
                 for direction in neighbors:
                     neighbor = (current[0] + direction[0], current[1] + direction[1])
@@ -214,7 +218,6 @@ class ARAStar(AStar):
                         continue
                     if neighbor in self.close_set and tentative_g_score >= self.g_score[neighbor]:
                         continue
-                    gui.updateMap(neighbor, NEIGHBOR_COLOR)
                     if neighbor not in self.close_set or tentative_g_score < self.g_score[neighbor]:
                         self.came_from[neighbor] = current
                         self.g_score[neighbor] = tentative_g_score
@@ -234,39 +237,45 @@ class ARAStar(AStar):
             tmp = min(tmp, self.g_score[i[1]] + self.heuristic(i[1], self.start))
         return min(float(self.epsilon), self.g_score[self.goal] / tmp)
 
-    def araStar(self, gui):
+    def araStar(self):
         start_time = time.time()
-        self.improvePath(gui)
+        self.improvePath()
         o_epsilon = self.minimalF()
         while o_epsilon > 1 and (time.time() - start_time) <= self.time_limit / 1000:
             self.epsilon -= self.de_epsilon
             self.open_set.add(self.incons)
             self.close_set = {}
-            self.improvePath(gui)
+            self.improvePath()
             o_epsilon = self.minimalF()
         return self.trackingPath()
 
-    def runARAStar(self, gui, input_name='input1.txt', output_name='output1.txt', epsilon=5.0, time_limit=100000,
+    def runARAStar(self, input_name='input1.txt', output_name='output1.txt', epsilon=5.0, time_limit=100000,
                    de_epsilon=0.5):
         START_TIME = time.clock()
         self.epsilon = epsilon
         self.time_limit = time_limit
         self.de_epsilon = de_epsilon
         self.map.readFromFile(input_name)
-        self.minStep, self.minPath = self.araStar(gui)
+        self.minStep, self.minPath = self.araStar()
         self.writeToFile(output_name)
         if self.minStep == -1:
-            alert("Notification", "Path not found!")
+            Notification().alert("Notification", "Path not found!")
         else:
             gui.drawPath(self.minPath)
-            alert("Time: ",
-                  repr(time.clock() - START_TIME - sum_delay) + "s\nStep: " + repr(self.minStep))
+            Notification().alert("Time: ",
+                                 repr(time.clock() - START_TIME - sum_delay) + "s\nStep: " + repr(self.minStep))
 
 
 class GUI():
-    def __init__(self, map, screen):
+    def __init__(self, map, screen_width, screen_height, screen_caption):
         self.map = map
-        self.screen = screen
+        self.start = map.getStart()
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.screen_caption = screen_caption
+        pygame.init()
+        pygame.display.set_caption(self.screen_caption)
+        self.screen = pygame.display.set_mode([screen_width, screen_height])
 
     def drawMap(self):
         size = self.map.getSize()
@@ -274,34 +283,34 @@ class GUI():
         root = self.map.getStart()
         des = self.map.getGoal()
 
-        screen.fill(BACKGROUND_COLOR)
+        self.screen.fill(BACKGROUND_COLOR)
 
         x = 0
         while x < size:
             y = 0
             while y < size:
                 if (matrix[x][y] == 1):
-                    pygame.draw.rect(screen, WALL_COLOR,
-                                     [(item_width + margin) * y + margin, (item_height + margin) * x + margin,
-                                      item_width,
-                                      item_height])
+                    pygame.draw.rect(self.screen, WALL_COLOR,
+                                     [(ITEM_WIDTH + MARGIN) * y + MARGIN, (ITEM_HEIGHT + MARGIN) * x + MARGIN,
+                                      ITEM_WIDTH,
+                                      ITEM_HEIGHT])
                 y = y + 1
             x = x + 1
-        pygame.draw.rect(screen, START_GOAL_COLOR,
-                         [(item_width + margin) * root[1] + margin, (item_height + margin) * root[0] + margin,
-                          item_width,
-                          item_height])
-        pygame.draw.rect(screen, START_GOAL_COLOR,
-                         [(item_width + margin) * des[1] + margin, (item_height + margin) * des[0] + margin, item_width,
-                          item_height])
+        pygame.draw.rect(self.screen, START_GOAL_COLOR,
+                         [(ITEM_WIDTH + MARGIN) * root[1] + MARGIN, (ITEM_HEIGHT + MARGIN) * root[0] + MARGIN,
+                          ITEM_WIDTH,
+                          ITEM_HEIGHT])
+        pygame.draw.rect(self.screen, START_GOAL_COLOR,
+                         [(ITEM_WIDTH + MARGIN) * des[1] + MARGIN, (ITEM_HEIGHT + MARGIN) * des[0] + MARGIN, ITEM_WIDTH,
+                          ITEM_HEIGHT])
         pygame.display.flip()
 
     def updateMap(self, pos, color):
-        if start != pos:
+        if self.start != pos:
             pygame.draw.rect(self.screen, color,
-                             [(item_width + margin) * pos[1] + margin, (item_height + margin) * pos[0] + margin,
-                              item_width,
-                              item_height])
+                             [(ITEM_WIDTH + MARGIN) * pos[1] + MARGIN, (ITEM_HEIGHT + MARGIN) * pos[0] + MARGIN,
+                              ITEM_WIDTH,
+                              ITEM_HEIGHT])
             pygame.display.update()
         time.sleep(DELAY_TIME)
         global sum_delay
@@ -311,6 +320,9 @@ class GUI():
         for pos in reversed(path):
             self.updateMap(pos, START_GOAL_COLOR)
 
+    def ready(self):
+        Notification().alert(self.screen_caption, "Press OK to start")
+
     def wait(self):
         while True:
             event = pygame.event.poll()
@@ -319,56 +331,40 @@ class GUI():
                 sys.exit()
 
 
-def alert(title, content):
-    Tk().wm_withdraw()
-    messagebox.showinfo(title, content)
+class Notification():
+    def alert(self, title, content):
+        Tk().wm_withdraw()
+        messagebox.showinfo(title, content)
+
+    def error(self, title, content):
+        Tk().wm_withdraw()
+        messagebox.showerror(title, content)
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 or len(sys.argv) == 5:
         if len(sys.argv) == 3:
             input, output = sys.argv[1], sys.argv[2]
+
             findPath = AStar(input)
+
             map = findPath.getMapObject()
 
-            screen_width = item_width * map.getSize() + margin * map.getSize()
-            screen_height = item_height * map.getSize() + margin * map.getSize()
+            screen_width = ITEM_WIDTH * map.getSize() + MARGIN * map.getSize()
+            screen_height = ITEM_HEIGHT * map.getSize() + MARGIN * map.getSize()
 
-            global sum_delay
-            sum_delay = 0
-            global start
-            start = findPath.getStart()
-
-            pygame.init()
-            pygame.display.set_caption("A Star")
-            screen = pygame.display.set_mode([screen_width, screen_height])
-            gui = GUI(map, screen)
+            gui = GUI(map, screen_width, screen_height, "A Star")
             gui.drawMap()
-            alert("A Star algorithm", "Press OK to start")
-            findPath.runAStar(gui, input, output)
+            gui.ready()
+
+            findPath.runAStar(gui, output)
 
             gui.wait()
 
         else:
             input, output, epsilon, tmax = sys.argv[1], sys.argv[2], float(sys.argv[3]), int(sys.argv[4])
             findPath = ARAStar(input, epsilon, tmax)
-            map = findPath.getMapObject()
-
-            screen_width = item_width * map.getSize() + margin * map.getSize()
-            screen_height = item_height * map.getSize() + margin * map.getSize()
-
-            sum_delay = 0
-            start = findPath.getStart()
-
-            pygame.init()
-            pygame.display.set_caption("ARA Star")
-            screen = pygame.display.set_mode([screen_width, screen_height])
-            gui = GUI(map, screen)
-            gui.drawMap()
-            alert("ARA Star algorithm", "Press OK to start")
-            findPath.runARAStar(gui, input, output, epsilon, tmax)
-
-            gui.wait()
+            findPath.runARAStar(input, output, epsilon, tmax)
 
     else:
-        alert("Error", "Parameter is incorrect")
+        Notification().error("Error", "Parameter is incorrect")
