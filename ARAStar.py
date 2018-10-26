@@ -1,9 +1,10 @@
 import time
 import sys
-import math
+from Heuristic import *
 from File import *
 from PriorityQueue import PriorityQueue
 
+inf = 10**10
 
 class ARAStar():
 
@@ -19,16 +20,10 @@ class ARAStar():
         self.close_set = set()
         self.open_set = PriorityQueue()
         self.came_from = {}  # father
+        self.incons = []
         self.epsilon = epsilon
         self.time_limit = time_limit
         self.de_epsilon = de_epsilon
-        self.incons = PriorityQueue()
-
-    def heuristic(self, a, b):
-        return math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
-
-    def offerHeuristic(self, a, b):
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     def trackingPath(self):
         data = []
@@ -47,30 +42,6 @@ class ARAStar():
                (0 <= neighbor[1] < len(self.map[0])) and \
                (self.map[neighbor[0]][neighbor[1]] == 0)
 
-    def writeToFile(self, output_name):
-        fout = open(output_name, "w")
-        fout.write("%s\n" % str(self.minStep))
-        if self.minStep != -1:
-            for coor in self.minPath:
-                fout.write(str(coor) + ' ')
-            fout.write("\n")
-            mapFile = self.map
-            for i in range(self.size):
-                for j in range(self.size):
-                    if self.map[i][j] == 1:
-                        mapFile[i][j] = 'o'
-                    elif self.map[i][j] == 0:
-                        mapFile[i][j] = '-'
-            for i, j in self.minPath:
-                mapFile[i][j] = 'x'
-            mapFile[self.start[0]][self.start[1]] = 'S'
-            mapFile[self.goal[0]][self.goal[1]] = 'G'
-            for row in mapFile:
-                for i in row:
-                    fout.write("%s " % i)
-                fout.write("\n")
-        fout.close()
-
     def improvePath(self):
         while not self.open_set.empty() and \
                 ((self.goal not in self.f_score) or self.f_score[self.goal] > self.f_score[self.start]):
@@ -78,7 +49,7 @@ class ARAStar():
             while not self.open_set.empty():
                 current = self.open_set.get()
                 if current == self.goal:
-                    break
+                    return self.trackingPath()
                 self.close_set.add(current)
                 path = []
                 for direction in neighbors:
@@ -91,47 +62,41 @@ class ARAStar():
                     if neighbor not in self.close_set or tentative_g_score < self.g_score[neighbor]:
                         self.came_from[neighbor] = current
                         self.g_score[neighbor] = tentative_g_score
-                        self.f_score[neighbor] = tentative_g_score + self.epsilon * self.heuristic(neighbor, self.goal)
+                        self.f_score[neighbor] = tentative_g_score + self.epsilon * heuristic(neighbor, self.goal)
                         path.append(neighbor)
-                        if neighbor not in self.close_set:
+                        if neighbor not in self.open_set.elements:
                             self.open_set.put(neighbor, self.f_score[neighbor])
                         else:
-                            self.incons.put(neighbor, self.f_score[neighbor])
-            return current, path
+                            self.incons.append(neighbor)
+            return -1, []
 
     def minimalF(self):
-        tmp = float("inf")
-        for i in self.incons.elements:
-            tmp = min(tmp, self.g_score[i[1]] + self.heuristic(i[1], self.start))
+        tmp = inf
+        for i in self.incons:
+            tmp = min(tmp, self.g_score[i] + heuristic(i, self.goal))
         for i in self.open_set.elements:
-            tmp = min(tmp, self.g_score[i[1]] + self.heuristic(i[1], self.start))
-        return min(float(self.epsilon), self.g_score[self.goal] / tmp)
+            tmp = min(tmp, self.g_score[i[1]] + heuristic(i[1], self.goal))
+        return min(self.epsilon, self.g_score[self.goal] / tmp)
 
     def araStar(self):
-        self.open_set.put(self.start, 0)
+        start_time = time.time()
         self.g_score[self.start] = 0
-        self.g_score[self.goal] = 1000000
-        self.f_score[self.start] = self.g_score[self.start] + self.heuristic(self.start, self.goal)
+        self.g_score[self.goal] = inf
+        self.f_score[self.start] = self.g_score[self.start] + self.epsilon * heuristic(self.start, self.goal)
         self.open_set.put(self.start, self.f_score[self.start])
 
-        start_time = time.time()
-        path = self.improvePath()
+        self.improvePath()
         o_epsilon = self.minimalF()
         while o_epsilon > 1 and (time.time() - start_time) <= self.time_limit / 1000:
             self.epsilon -= self.de_epsilon
             print(self.epsilon)
-            self.open_set.add(self.incons)
+            self.open_set.elements.extend(self.incons)
+            self.incons = []
             self.close_set = set()
-            path = self.improvePath()
+            self.improvePath()
             o_epsilon = self.minimalF()
-        path = []
-        tmp = self.goal
-        while (tmp != -1):  # Tracks the path.
-            path.append(tmp)
-            tmp = self.came_from[tmp]
-        path = list(reversed(path))
-        return self.g[self.goal] + 1, path
-        # return self.trackingPath()
+
+        return self.trackingPath()
 
     def runARAStar(self, input_name='input1.txt', output_name='output1.txt', epsilon=5.0, time_limit=100000,
                    de_epsilon=0.5):
