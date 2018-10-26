@@ -4,7 +4,6 @@ from Heuristic import *
 from File import *
 from PriorityQueue import PriorityQueue
 
-inf = 10**10
 
 class ARAStar():
 
@@ -64,34 +63,54 @@ class ARAStar():
                         self.g_score[neighbor] = tentative_g_score
                         self.f_score[neighbor] = tentative_g_score + self.epsilon * heuristic(neighbor, self.goal)
                         path.append(neighbor)
-                        if neighbor not in self.open_set.elements:
+                        if neighbor not in self.close_set:
                             self.open_set.put(neighbor, self.f_score[neighbor])
                         else:
                             self.incons.append(neighbor)
             return -1, []
 
     def minimalF(self):
-        tmp = inf
-        for i in self.incons:
-            tmp = min(tmp, self.g_score[i] + heuristic(i, self.goal))
-        for i in self.open_set.elements:
-            tmp = min(tmp, self.g_score[i[1]] + heuristic(i[1], self.goal))
+        tmp = float("inf")
+        for s in self.incons:
+            tmp = min(tmp, self.g_score[s] + heuristic(s, self.start))
+        for f, s in self.open_set.elements:
+            tmp = min(tmp, self.g_score[s] + heuristic(s, self.start))
         return min(self.epsilon, self.g_score[self.goal] / tmp)
 
     def araStar(self):
         start_time = time.time()
         self.g_score[self.start] = 0
-        self.g_score[self.goal] = inf
+        self.g_score[self.goal] = float("inf")
         self.f_score[self.start] = self.g_score[self.start] + self.epsilon * heuristic(self.start, self.goal)
         self.open_set.put(self.start, self.f_score[self.start])
 
-        self.improvePath()
+        self.minStep, self.minPath = self.improvePath()
         o_epsilon = self.minimalF()
-        while o_epsilon > 1 and (time.time() - start_time) <= self.time_limit / 1000:
+        print("Time: ", (time.time() - start_time) * 1000)
+        print("Epsilon: ", self.epsilon)
+        print("Step: ", self.minStep)
+        print("Path: ", self.minPath)
+        print("o_epsilon: ", o_epsilon)
+        print("\n")
+        while o_epsilon > 1 and (time.time() - start_time) * 1000 <= self.time_limit:
             self.epsilon -= self.de_epsilon
-            print(self.epsilon)
+            print("Time: ", (time.time() - start_time) * 1000)
+            print("Epsilon: ", self.epsilon)
+            print("Step: ", self.minStep)
+            print("Path: ", self.minPath)
+            print("o_epsilon: ", o_epsilon)
+            print("\n")
+
+            # move states from incons to open_set
             self.open_set.elements.extend(self.incons)
             self.incons = []
+
+            # Update the priorities for all s in open_set
+            tmp = PriorityQueue()
+            for f, s in self.open_set.elements:
+                tmp.put(s, self.g_score[s] + self.epsilon * heuristic(s, self.goal))
+            self.open_set = tmp
+
             self.close_set = set()
             self.improvePath()
             o_epsilon = self.minimalF()
