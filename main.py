@@ -2,6 +2,7 @@
 # @Author: Doan Quang Tuan - Le Hoang Sang
 
 from AStar import AStar
+from ARAStar import ARAStar
 from GUI import *
 
 if __name__ == "__main__":
@@ -25,8 +26,8 @@ if __name__ == "__main__":
 
         else:
             input, output, epsilon, tmax = sys.argv[1], sys.argv[2], float(sys.argv[3]), int(sys.argv[4])
-            #findPath = ARAStar(input, epsilon, tmax)
-            #findPath.runARAStar(input, output, epsilon, tmax)
+            findPath = ARAStar()
+            findPath.runARAStar(input, output, epsilon, tmax)
 
     else:
         Notification().error("Error", "Parameter is incorrect")
