@@ -41,7 +41,7 @@ class ARAStar():
 
     def improvePath(self):
         while not self.open_set.empty():
-            _, current = self.open_set.get()
+            f, current = self.open_set.get()
             if current == self.goal:
                 path = self.trackingPath()
                 return path
